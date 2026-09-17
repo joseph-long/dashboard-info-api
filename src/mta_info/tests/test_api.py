@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from mta_info.main import create_app
 from mta_info.tests.test_departures import NOW_EPOCH, feed_message
+from mta_info.word_of_the_day import WordOfTheDayEntry
 
 FIXTURE_INDEX = {
     "fetched_at": "2026-01-01T00:00:00+00:00",
@@ -50,6 +51,51 @@ class FakeFeedCache:
         pass
 
 
+class FakeWordOfTheDayCache:
+    """Stands in for WordOfTheDayCache: serves canned entries, never touches
+    the network."""
+
+    def __init__(self, entries):
+        self._entries = entries
+
+    async def entries_for_today(self):
+        return dict(self._entries)
+
+    async def close(self):
+        pass
+
+
+FIXTURE_WOTD = {
+    "en": WordOfTheDayEntry(
+        language="en",
+        date="2026-01-01",
+        word="serendipity",
+        part_of_speech="n",
+        definition="The occurrence of happy accidents.",
+        example=None,
+        source_url="https://en.wiktionary.org/wiki/serendipity",
+    ),
+    "es": WordOfTheDayEntry(
+        language="es",
+        date="2026-01-01",
+        word="casa",
+        part_of_speech="noun, feminine",
+        definition="Edificio para habitar.",
+        example="Una casa de ocho plantas.",
+        source_url="https://dle.rae.es/casa",
+    ),
+    "de": WordOfTheDayEntry(
+        language="de",
+        date="2026-01-01",
+        word="Irrealis",
+        part_of_speech="Substantiv, maskulin",
+        definition="Modus des irrealen Wunsches.",
+        example=None,
+        source_url="https://www.duden.de/rechtschreibung/Irrealis",
+    ),
+}
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     now_epoch = int(datetime.now(timezone.utc).timestamp())
@@ -65,7 +111,10 @@ def client(tmp_path, monkeypatch):
     (gtfs_dir / "stations.json").write_text(json.dumps(FIXTURE_INDEX), encoding="utf-8")
     monkeypatch.setenv("MTA_STATE_DIR", str(tmp_path))
 
-    app = create_app(feed_cache=FakeFeedCache({"gtfs-ace": feed}))
+    app = create_app(
+        feed_cache=FakeFeedCache({"gtfs-ace": feed}),
+        wotd_cache=FakeWordOfTheDayCache(FIXTURE_WOTD),
+    )
     with TestClient(app) as test_client:
         yield test_client
 
@@ -305,3 +354,28 @@ def test_departures_response_shape_unchanged_by_schedule_feature(client):
     enroll(client)
     resp = client.get("/public/devices/board-1/departures")
     assert isinstance(resp.json(), list)
+
+
+def test_word_of_the_day_payload_shape(client):
+    resp = client.get("/public/word-of-the-day")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert set(data.keys()) == {"en", "es", "de"}
+    assert data["en"]["word"] == "serendipity"
+    assert data["es"]["example"] == "Una casa de ocho plantas."
+    assert data["de"]["part_of_speech"] == "Substantiv, maskulin"
+
+
+def test_word_of_the_day_serves_other_languages_when_one_is_missing(client):
+    # A source can be temporarily unreachable; the endpoint still serves the
+    # other languages rather than failing the whole request.
+    app = create_app(
+        feed_cache=FakeFeedCache({}),
+        wotd_cache=FakeWordOfTheDayCache({**FIXTURE_WOTD, "de": None}),
+    )
+    with TestClient(app) as broken_client:
+        resp = broken_client.get("/public/word-of-the-day")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["de"] is None
+    assert data["en"]["word"] == "serendipity"

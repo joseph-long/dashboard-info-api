@@ -23,6 +23,7 @@ from .departures import compute_departures, merge_departures
 from .feeds import FeedCache, feed_groups_for_routes
 from .gtfs_static import load_index, refresh_static_gtfs
 from .paths import db_path
+from .word_of_the_day import WordOfTheDayCache
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -77,22 +78,29 @@ async def _fetch_static_gtfs_if_missing(app: FastAPI) -> None:
     logger.info("Fetched static GTFS data: %d stations", len(app.state.gtfs_index.stations))
 
 
-def create_app(feed_cache: FeedCache | None = None) -> FastAPI:
+def create_app(
+    feed_cache: FeedCache | None = None,
+    wotd_cache: WordOfTheDayCache | None = None,
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db = Database(db_path())
         app.state.gtfs_index = load_index()
         if app.state.feed_cache is None:
             app.state.feed_cache = FeedCache()
+        if app.state.wotd_cache is None:
+            app.state.wotd_cache = WordOfTheDayCache()
         bootstrap_task = asyncio.create_task(_fetch_static_gtfs_if_missing(app))
         try:
             yield
         finally:
             bootstrap_task.cancel()
             await app.state.feed_cache.close()
+            await app.state.wotd_cache.close()
 
     app = FastAPI(lifespan=lifespan)
     app.state.feed_cache = feed_cache
+    app.state.wotd_cache = wotd_cache
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -235,6 +243,14 @@ def create_app(feed_cache: FeedCache | None = None) -> FastAPI:
             "off_start": device.off_start,
             "off_end": device.off_end,
         }
+
+    # Not device-specific -- same content for every device -- so it isn't
+    # nested under /devices/{device_id}/, but it still lives under /public/
+    # since devices call it unauthenticated over the open internet.
+    @app.get("/public/word-of-the-day")
+    async def public_word_of_the_day(request: Request):
+        entries = await request.app.state.wotd_cache.entries_for_today()
+        return {lang: (asdict(entry) if entry else None) for lang, entry in entries.items()}
 
     return app
 
