@@ -40,7 +40,6 @@ class WordOfTheDayEntry:
     word: str
     part_of_speech: str | None
     definition: str
-    example: str | None
     source_url: str
 
 
@@ -78,9 +77,6 @@ async def fetch_english(client: httpx.AsyncClient) -> WordOfTheDayEntry:
         date=today.isoformat(),
         word=word,
         part_of_speech=part_of_speech,
-        # The daily box doesn't reliably carry a separate usage example
-        # apart from the definition itself.
-        example=None,
         definition=definition,
         source_url=f"https://en.wiktionary.org/wiki/{page}",
     )
@@ -103,15 +99,12 @@ async def fetch_spanish(client: httpx.AsyncClient) -> WordOfTheDayEntry:
     if sense.get("gender"):
         part_of_speech = f"{part_of_speech}, {sense['gender']}" if part_of_speech else sense["gender"]
 
-    examples = sense.get("examples") or []
-
     return WordOfTheDayEntry(
         language="es",
         date=date.today().isoformat(),
         word=word,
         part_of_speech=part_of_speech,
         definition=sense["description"],
-        example=examples[0] if examples else None,
         source_url=f"https://dle.rae.es/{word}",
     )
 
@@ -130,8 +123,7 @@ async def fetch_german(client: httpx.AsyncClient) -> WordOfTheDayEntry:
     """de.wiktionary.org only has a "Wort der Woche"; Duden's site runs a
     genuine daily word but has no API. The landing page gives the word and
     its link to the full entry; the entry page's heading is "Bedeutung" for
-    single-sense words or "Bedeutungsübersicht" for multi-sense ones, and a
-    separate "Beispiele" section only exists for some entries."""
+    single-sense words or "Bedeutungsübersicht" for multi-sense ones."""
     landing = await client.get(DUDEN_WOTD_URL)
     landing.raise_for_status()
     soup = BeautifulSoup(landing.text, "html.parser")
@@ -160,7 +152,6 @@ async def fetch_german(client: httpx.AsyncClient) -> WordOfTheDayEntry:
     )
     if definition is None:
         raise ValueError(f"no Duden definition section for {word!r}")
-    example = _duden_section_text(entry_soup, "Beispiele")
 
     return WordOfTheDayEntry(
         language="de",
@@ -168,7 +159,6 @@ async def fetch_german(client: httpx.AsyncClient) -> WordOfTheDayEntry:
         word=word,
         part_of_speech=part_of_speech,
         definition=definition,
-        example=example,
         source_url=entry_url,
     )
 

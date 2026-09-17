@@ -32,7 +32,6 @@ RAE_WORDS_CASA = {
                         "category": "noun",
                         "gender": "feminine",
                         "description": "Edificio para habitar.",
-                        "examples": ["Una casa de ocho plantas."],
                     }
                 ]
             }
@@ -42,8 +41,7 @@ RAE_WORDS_CASA = {
 
 # Trimmed from the real Duden pages: the landing page's word-of-the-day
 # widget links the word and its part of speech; the entry page's heading is
-# "Bedeutung" for a single-sense word like this one, and there's no separate
-# "Beispiele" section here (the usage is folded into the definition itself).
+# "Bedeutung" for a single-sense word like this one.
 DUDEN_LANDING_HTML = """
 <div id="block-numero-wordoftheday">
 <section class="scene scene--style_corp">
@@ -76,7 +74,6 @@ async def test_fetch_english_parses_word_and_definition():
     assert entry.word == "enfranchisement"
     assert entry.part_of_speech == "n"
     assert "enfranchising" in entry.definition
-    assert entry.example is None
 
 
 async def test_fetch_spanish_combines_daily_and_word_lookup():
@@ -93,7 +90,6 @@ async def test_fetch_spanish_combines_daily_and_word_lookup():
     assert entry.word == "casa"
     assert entry.part_of_speech == "noun, feminine"
     assert entry.definition == "Edificio para habitar."
-    assert entry.example == "Una casa de ocho plantas."
 
 
 async def test_fetch_german_scrapes_landing_and_entry_pages():
@@ -110,4 +106,3 @@ async def test_fetch_german_scrapes_landing_and_entry_pages():
     assert entry.word == "Irrealis"
     assert entry.part_of_speech == "Substantiv, maskulin"
     assert "irrealen Wunsches" in entry.definition
-    assert entry.example is None

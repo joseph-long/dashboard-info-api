@@ -72,7 +72,6 @@ FIXTURE_WOTD = {
         word="serendipity",
         part_of_speech="n",
         definition="The occurrence of happy accidents.",
-        example=None,
         source_url="https://en.wiktionary.org/wiki/serendipity",
     ),
     "es": WordOfTheDayEntry(
@@ -81,7 +80,6 @@ FIXTURE_WOTD = {
         word="casa",
         part_of_speech="noun, feminine",
         definition="Edificio para habitar.",
-        example="Una casa de ocho plantas.",
         source_url="https://dle.rae.es/casa",
     ),
     "de": WordOfTheDayEntry(
@@ -90,7 +88,6 @@ FIXTURE_WOTD = {
         word="Irrealis",
         part_of_speech="Substantiv, maskulin",
         definition="Modus des irrealen Wunsches.",
-        example=None,
         source_url="https://www.duden.de/rechtschreibung/Irrealis",
     ),
 }
@@ -362,7 +359,7 @@ def test_word_of_the_day_payload_shape(client):
     data = resp.json()
     assert set(data.keys()) == {"en", "es", "de"}
     assert data["en"]["word"] == "serendipity"
-    assert data["es"]["example"] == "Una casa de ocho plantas."
+    assert data["es"]["definition"] == "Edificio para habitar."
     assert data["de"]["part_of_speech"] == "Substantiv, maskulin"
 
 
