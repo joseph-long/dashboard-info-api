@@ -391,7 +391,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mta-info-api"
+name = "dashboard-info-api"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

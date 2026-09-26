@@ -1,10 +1,10 @@
-# MTA info API
+# Dashboard info API
 
 ## Concepts
 
 ### Device
 
-Each device has an identifier presented at enrollment and when requesting the current MTA status.
+Each device has an identifier presented at enrollment and when requesting its dashboard info (MTA departures, display schedule, word of the day).
 
 The last request timestamp is stored with the device row.
 
@@ -73,7 +73,7 @@ Every route a device calls unauthenticated over the open internet lives under
 `/public/devices/{device_id}/...` — the device id is a path segment, not a
 header. This lets the reverse proxy in front of the app allow-list the whole
 `/public/` prefix once; a new device-facing route never needs an infra change
-to become reachable (see the `mta-info-api.nix` module in the infra repo).
+to become reachable (see the `dashboard-info-api.nix` module in the infra repo).
 Everything else (enrollment, configure pages, the dashboard preview, and
 their backing APIs) is restricted to LAN/VPN by that same proxy.
 
@@ -128,11 +128,11 @@ fields optional).
 
 ```sh
 uv sync --extra dev
-uv run mta-info-api            # serves http://0.0.0.0:8000 (override with --host/--port)
+uv run dashboard-info-api            # serves http://0.0.0.0:8000 (override with --host/--port)
 ```
 
 State (SQLite database + cached static GTFS data) lives in `./var`; override with
-`MTA_STATE_DIR`. On first run the static GTFS data is fetched from the MTA in the
+`DASHBOARD_STATE_DIR`. On first run the static GTFS data is fetched from the MTA in the
 background so the configure page has stations to pick from.
 
 The web UI is at `/`: enroll a device, configure it at `/devices/<id>/configure`,
@@ -142,6 +142,6 @@ and preview its board at `/devices/<id>/dashboard`. Devices poll
 ## Development
 
 ```sh
-uv run pytest                  # unit tests (src/mta_info/tests)
+uv run pytest                  # unit tests (src/dashboard_info/tests)
 uv run pytest tests_e2e        # browser e2e tests (Playwright, Firefox)
 ```

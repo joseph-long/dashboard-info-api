@@ -71,7 +71,7 @@ def _fixture_feed_bytes() -> bytes:
 @pytest.fixture(scope="session")
 def stub_feed_server():
     """Serves the canned GTFS-RT feed for any path; the app under test is
-    pointed at it via MTA_FEED_BASE."""
+    pointed at it via DASHBOARD_MTA_FEED_BASE."""
     payload = _fixture_feed_bytes()
 
     class Handler(BaseHTTPRequestHandler):
@@ -122,7 +122,7 @@ def live_server(tmp_path, stub_feed_server):
             sys.executable,
             "-m",
             "uvicorn",
-            "mta_info.main:app",
+            "dashboard_info.main:app",
             "--port",
             str(port),
             "--log-level",
@@ -131,8 +131,8 @@ def live_server(tmp_path, stub_feed_server):
         cwd=REPO_ROOT,
         env={
             **os.environ,
-            "MTA_STATE_DIR": str(tmp_path),
-            "MTA_FEED_BASE": stub_feed_server,
+            "DASHBOARD_STATE_DIR": str(tmp_path),
+            "DASHBOARD_MTA_FEED_BASE": stub_feed_server,
             "PYTHONPATH": str(REPO_ROOT / "src"),
         },
     )

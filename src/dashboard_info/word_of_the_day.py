@@ -26,7 +26,7 @@ def _detagged_text(tag) -> str:
 
 # Wikimedia asks bots to send a descriptive User-Agent; Duden and rae-api.com
 # get the same one for simplicity, and it makes us honest either way.
-USER_AGENT = "mta-info-api/0.1 (word-of-the-day feature)"
+USER_AGENT = "dashboard-info-api/0.1 (word-of-the-day feature)"
 
 EN_WIKTIONARY_API = "https://en.wiktionary.org/w/api.php"
 RAE_API_BASE = "https://rae-api.com/api"

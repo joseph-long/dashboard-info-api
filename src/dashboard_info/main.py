@@ -209,7 +209,7 @@ def create_app(
     # under /public/devices/{device_id}/... -- the device id is a path
     # segment, not a header, so the reverse proxy in front of this app can
     # allow-list the whole /public/ prefix once and never need to change again
-    # when a new device-facing route is added (see infra's mta-info-api.nix).
+    # when a new device-facing route is added (see infra's dashboard-info-api.nix).
 
     @app.get("/public/devices/{device_id}/departures")
     async def public_departures(
@@ -259,16 +259,16 @@ app = create_app()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MTA info API server")
-    parser.add_argument("--host", default=os.environ.get("MTA_HOST", "0.0.0.0"))
+    parser = argparse.ArgumentParser(description="Dashboard info API server")
+    parser.add_argument("--host", default=os.environ.get("DASHBOARD_HOST", "0.0.0.0"))
     parser.add_argument(
-        "--port", type=int, default=int(os.environ.get("MTA_PORT", "8000"))
+        "--port", type=int, default=int(os.environ.get("DASHBOARD_PORT", "8000"))
     )
     args = parser.parse_args()
 
     import uvicorn
 
-    uvicorn.run("mta_info.main:app", host=args.host, port=args.port)
+    uvicorn.run("dashboard_info.main:app", host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

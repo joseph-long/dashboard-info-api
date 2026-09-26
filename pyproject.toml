@@ -1,7 +1,7 @@
 [project]
-name = "mta-info-api"
+name = "dashboard-info-api"
 version = "0.1.0"
-description = "Simplified MTA subway departures API for embedded devices"
+description = "Info API for embedded dashboard devices (MTA subway departures, word of the day)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -21,7 +21,7 @@ dev = [
 ]
 
 [project.scripts]
-mta-info-api = "mta_info.main:main"
+dashboard-info-api = "dashboard_info.main:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -31,12 +31,12 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"mta_info" = ["static/**/*"]
+"dashboard_info" = ["static/**/*"]
 
 [tool.pytest.ini_options]
 addopts = "-q --browser firefox"
 asyncio_mode = "auto"
 # Unit tests live inside the package; browser e2e tests live in tests_e2e
 # (run explicitly: `pytest tests_e2e`).
-testpaths = ["src/mta_info/tests"]
+testpaths = ["src/dashboard_info/tests"]
 pythonpath = ["src"]

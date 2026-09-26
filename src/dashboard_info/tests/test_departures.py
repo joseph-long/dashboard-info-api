@@ -2,9 +2,9 @@ from datetime import datetime, timedelta, timezone
 
 from google.transit import gtfs_realtime_pb2
 
-from mta_info.db import Configuration
-from mta_info.departures import compute_departures, merge_departures, Departure
-from mta_info.gtfs_static import ChildStop, GtfsIndex, RouteInfo, Station
+from dashboard_info.db import Configuration
+from dashboard_info.departures import compute_departures, merge_departures, Departure
+from dashboard_info.gtfs_static import ChildStop, GtfsIndex, RouteInfo, Station
 
 NOW = datetime(2026, 9, 13, 17, 0, 0, tzinfo=timezone.utc)
 NOW_EPOCH = int(NOW.timestamp())

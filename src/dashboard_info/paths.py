@@ -3,13 +3,13 @@ from pathlib import Path
 
 
 def state_dir() -> Path:
-    path = Path(os.environ.get("MTA_STATE_DIR", "./var")).expanduser().resolve()
+    path = Path(os.environ.get("DASHBOARD_STATE_DIR", "./var")).expanduser().resolve()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def db_path() -> Path:
-    return state_dir() / "mta_info.db"
+    return state_dir() / "dashboard_info.db"
 
 
 def gtfs_static_dir() -> Path:

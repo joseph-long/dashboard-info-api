@@ -7,7 +7,7 @@ from google.transit import gtfs_realtime_pb2
 
 # Overridable so tests can point the app at a stub feed server.
 FEED_BASE = os.environ.get(
-    "MTA_FEED_BASE", "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/"
+    "DASHBOARD_MTA_FEED_BASE", "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/"
 )
 
 # MTA splits subway real-time data across these feed groups; the dict key is

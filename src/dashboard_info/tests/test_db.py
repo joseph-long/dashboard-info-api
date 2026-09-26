@@ -1,6 +1,6 @@
 import pytest
 
-from mta_info.db import (
+from dashboard_info.db import (
     ConfigurationUpdate,
     Database,
     DeviceExistsError,

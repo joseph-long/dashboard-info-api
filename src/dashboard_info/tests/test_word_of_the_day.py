@@ -1,6 +1,6 @@
 import httpx
 
-from mta_info.word_of_the_day import fetch_english, fetch_german, fetch_spanish
+from dashboard_info.word_of_the_day import fetch_english, fetch_german, fetch_spanish
 
 # Trimmed from a real en.wiktionary.org action=parse&prop=text response --
 # the WOTD-rss-* ids are the stable bit RSS readers rely on, so they're the

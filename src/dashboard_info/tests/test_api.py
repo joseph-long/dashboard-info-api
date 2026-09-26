@@ -4,9 +4,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from mta_info.main import create_app
-from mta_info.tests.test_departures import NOW_EPOCH, feed_message
-from mta_info.word_of_the_day import WordOfTheDayEntry
+from dashboard_info.main import create_app
+from dashboard_info.tests.test_departures import NOW_EPOCH, feed_message
+from dashboard_info.word_of_the_day import WordOfTheDayEntry
 
 FIXTURE_INDEX = {
     "fetched_at": "2026-01-01T00:00:00+00:00",
@@ -106,7 +106,7 @@ def client(tmp_path, monkeypatch):
     gtfs_dir = tmp_path / "gtfs_static"
     gtfs_dir.mkdir()
     (gtfs_dir / "stations.json").write_text(json.dumps(FIXTURE_INDEX), encoding="utf-8")
-    monkeypatch.setenv("MTA_STATE_DIR", str(tmp_path))
+    monkeypatch.setenv("DASHBOARD_STATE_DIR", str(tmp_path))
 
     app = create_app(
         feed_cache=FakeFeedCache({"gtfs-ace": feed}),
