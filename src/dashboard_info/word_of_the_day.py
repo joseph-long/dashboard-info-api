@@ -34,6 +34,92 @@ def _detagged_text(tag) -> str:
     text = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", text)
     return _SPACE_AFTER_OPEN_PAREN_RE.sub(r"\1", text)
 
+# A gendered noun is much easier to learn with its article attached, so for
+# Spanish and German the `word` we serve is the article plus the word ("el
+# aguachile", "die Herbstsonne"). English has no gendered article and nothing
+# that isn't a noun gets one.
+def _with_article(word: str, article: str | None) -> str:
+    return f"{article} {word}" if article else word
+
+
+_SPANISH_ARTICLE_BY_GENDER = {
+    "masculine": "el",
+    "feminine": "la",
+    # RAE files a common-gender noun ("periodista") under a single entry, so
+    # both articles are the honest rendering.
+    "masculine_and_feminine": "el/la",
+}
+
+_ACCENTED_VOWELS = "\u00e1\u00e9\u00ed\u00f3\u00fa"
+_VOWELS = "aeiou\u00fc"
+# Two adjacent strong vowels are a hiatus ("al-de-a"); a strong/weak pair is
+# one diphthong ("a-gua"). Only unaccented words reach the count, so the
+# accented weak vowels that also break a diphthong need not be listed.
+_STRONG_VOWELS = "aeo"
+
+
+def _syllable_count(word: str) -> int:
+    """Vowel groups in an unaccented `word`, splitting hiatuses. Enough to
+    locate the stressed syllable; not a general-purpose hyphenator."""
+    count = 0
+    previous = ""
+    for char in word:
+        if char not in _VOWELS:
+            previous = ""
+            continue
+        if not previous or (previous in _STRONG_VOWELS and char in _STRONG_VOWELS):
+            count += 1
+        previous = char
+    return count
+
+
+def _stressed_on_first_syllable(word: str) -> bool:
+    """Where Spanish orthography puts the stress: a written accent marks the
+    stressed vowel outright, and without one the stress falls on the
+    penultimate syllable for words ending in a vowel, -n or -s, on the last
+    syllable otherwise."""
+    if any(char in _ACCENTED_VOWELS for char in word):
+        return word.startswith(("\u00e1", "h\u00e1"))
+    count = _syllable_count(word)
+    if count < 2:
+        return True
+    stressed = count - 2 if word[-1] in "aeiouns" else count - 1
+    return stressed == 0
+
+
+def _spanish_article(word: str, gender: str | None) -> str | None:
+    article = _SPANISH_ARTICLE_BY_GENDER.get(gender or "")
+    # "el agua", "el hacha": a singular feminine noun beginning with a
+    # stressed /a/ takes the masculine article to avoid the double vowel.
+    word = word.lower()
+    a_initial = word.startswith(("a", "\u00e1", "ha", "h\u00e1"))
+    if article == "la" and a_initial and _stressed_on_first_syllable(word):
+        return "el"
+    return article
+
+
+_GERMAN_ARTICLE_BY_GENDER = {"maskulin": "der", "feminin": "die", "neutrum": "das"}
+_GERMAN_GENDER_RE = re.compile("|".join(_GERMAN_ARTICLE_BY_GENDER), re.IGNORECASE)
+
+
+def _german_article(part_of_speech: str | None) -> str | None:
+    """der/die/das from Duden's Wortart line ("Substantiv, feminin").
+
+    A word Duden files under several genders ("Substantiv, maskulin, oder
+    Substantiv, feminin, oder Substantiv, Neutrum") keeps them all, in its
+    order; a Pluralwort ("Ferien") is always "die"; verbs and adjectives,
+    having no article, get none."""
+    if not part_of_speech:
+        return None
+    if "Pluralwort" in part_of_speech:
+        return "die"
+    articles = dict.fromkeys(
+        _GERMAN_ARTICLE_BY_GENDER[match.group(0).lower()]
+        for match in _GERMAN_GENDER_RE.finditer(part_of_speech)
+    )
+    return "/".join(articles) or None
+
+
 # Wikimedia asks bots to send a descriptive User-Agent; Duden and rae-api.com
 # get the same one for simplicity, and it makes us honest either way.
 USER_AGENT = "dashboard-info-api/0.1 (word-of-the-day feature)"
@@ -47,6 +133,8 @@ DUDEN_WOTD_URL = "https://www.duden.de/wort-des-tages"
 class WordOfTheDayEntry:
     language: str  # "en" | "es" | "de"
     date: str  # ISO date, server-local
+    # Ready to display: a Spanish or German noun carries its article ("el
+    # aguachile", "die Herbstsonne"), which is how you want to learn it.
     word: str
     part_of_speech: str | None
     # Every sense the source lists, in source order, never empty. Which of
@@ -128,7 +216,7 @@ async def fetch_spanish(client: httpx.AsyncClient) -> WordOfTheDayEntry:
     return WordOfTheDayEntry(
         language="es",
         date=date.today().isoformat(),
-        word=word,
+        word=_with_article(word, _spanish_article(word, first.get("gender"))),
         part_of_speech=part_of_speech,
         definitions=definitions,
         source_url=f"https://dle.rae.es/{word}",
@@ -225,7 +313,7 @@ async def fetch_german(client: httpx.AsyncClient) -> WordOfTheDayEntry:
     return WordOfTheDayEntry(
         language="de",
         date=date.today().isoformat(),
-        word=word,
+        word=_with_article(word, _german_article(part_of_speech)),
         part_of_speech=part_of_speech,
         definitions=definitions,
         source_url=entry_url,

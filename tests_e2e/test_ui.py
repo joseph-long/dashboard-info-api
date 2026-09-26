@@ -164,7 +164,7 @@ WOTD_FIXTURE = {
     "es": {
         "language": "es",
         "date": "2026-09-26",
-        "word": "madrugada",
+        "word": "la madrugada",
         "part_of_speech": "sustantivo",
         "definitions": [
             "Las primeras horas despu\u00e9s de la medianoche.",
@@ -175,7 +175,7 @@ WOTD_FIXTURE = {
     "de": {
         "language": "de",
         "date": "2026-09-26",
-        "word": "Ohrwurm",
+        "word": "der Ohrwurm",
         "part_of_speech": "Substantiv",
         "definitions": ["Eine Melodie, die einem nicht mehr aus dem Kopf geht."],
         "source_url": "https://www.duden.de/rechtschreibung/Ohrwurm",
@@ -214,8 +214,10 @@ def test_devices_page_shows_word_of_the_day(page, live_server):
         "href", "https://en.wiktionary.org/wiki/susurrus"
     )
 
-    expect(entries.nth(1)).to_contain_text("madrugada")
-    expect(entries.nth(2)).to_contain_text("Ohrwurm")
+    # Spanish and German nouns arrive with their article already attached.
+    # .wotd-word nests the part of speech, so match the word within it.
+    expect(entries.nth(1).locator(".wotd-word")).to_contain_text("la madrugada")
+    expect(entries.nth(2).locator(".wotd-word")).to_contain_text("der Ohrwurm")
 
 
 def test_word_of_the_day_missing_language_still_shows_the_others(page, live_server):

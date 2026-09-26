@@ -1,6 +1,15 @@
 import httpx
 
-from dashboard_info.word_of_the_day import fetch_english, fetch_german, fetch_spanish
+import pytest
+
+from dashboard_info.word_of_the_day import (
+    _german_article,
+    _spanish_article,
+    _with_article,
+    fetch_english,
+    fetch_german,
+    fetch_spanish,
+)
 
 # Trimmed from a real en.wiktionary.org action=parse&prop=text response --
 # the WOTD-rss-* ids are the stable bit RSS readers rely on, so they're the
@@ -123,7 +132,8 @@ async def test_fetch_spanish_combines_daily_and_word_lookup():
     entry = await fetch_spanish(client)
 
     assert entry.language == "es"
-    assert entry.word == "casa"
+    # A noun is served with its article, so it can be learnt as one unit.
+    assert entry.word == "la casa"
     assert entry.part_of_speech == "noun, feminine"
     assert entry.definitions == ["Edificio para habitar."]
 
@@ -139,7 +149,7 @@ async def test_fetch_german_scrapes_landing_and_entry_pages():
     entry = await fetch_german(client)
 
     assert entry.language == "de"
-    assert entry.word == "Irrealis"
+    assert entry.word == "der Irrealis"
     assert entry.part_of_speech == "Substantiv, maskulin"
     assert len(entry.definitions) == 1
     assert "irrealen Wunsches" in entry.definitions[0]
@@ -226,3 +236,52 @@ async def test_fetch_german_keeps_every_sense_and_drops_examples():
     joined = " ".join(entry.definitions)
     assert "Beispiele" not in joined
     assert "MEV Verlag" not in joined
+
+
+@pytest.mark.parametrize(
+    "word,gender,expected",
+    [
+        ("aguachile", "masculine", "el aguachile"),
+        ("casa", "feminine", "la casa"),
+        # A common-gender noun has no single article, so it shows both.
+        ("periodista", "masculine_and_feminine", "el/la periodista"),
+        # A feminine noun starting with a stressed /a/ takes "el": stress is
+        # on the first syllable either by the penultimate-syllable rule
+        # ("a-gua", "ham-bre") or by a written accent ("a-gui-la").
+        ("agua", "feminine", "el agua"),
+        ("hambre", "feminine", "el hambre"),
+        ("\u00e1guila", "feminine", "el \u00e1guila"),
+        ("hacha", "feminine", "el hacha"),
+        # ...but not when the stress falls later, written accent or not.
+        ("aguja", "feminine", "la aguja"),
+        ("aldea", "feminine", "la aldea"),
+        ("acci\u00f3n", "feminine", "la acci\u00f3n"),
+        # Verbs and adjectives have no gender and so get no article.
+        ("correr", None, "correr"),
+    ],
+)
+def test_spanish_article(word, gender, expected):
+    assert _with_article(word, _spanish_article(word, gender)) == expected
+
+
+@pytest.mark.parametrize(
+    "part_of_speech,expected",
+    [
+        ("Substantiv, maskulin", "der Wort"),
+        ("Substantiv, feminin", "die Wort"),
+        ("Substantiv, Neutrum", "das Wort"),
+        # Duden files some nouns under more than one gender, and a Pluralwort
+        # ("Ferien") under none of them.
+        (
+            "Substantiv, maskulin, oder Substantiv, feminin, oder Substantiv, Neutrum",
+            "der/die/das Wort",
+        ),
+        ("Pluralwort", "die Wort"),
+        # Anything that isn't a noun has no article.
+        ("starkes Verb", "Wort"),
+        ("Adjektiv", "Wort"),
+        (None, "Wort"),
+    ],
+)
+def test_german_article(part_of_speech, expected):
+    assert _with_article("Wort", _german_article(part_of_speech)) == expected

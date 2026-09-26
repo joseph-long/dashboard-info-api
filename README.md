@@ -149,6 +149,11 @@ call it unauthenticated over the open internet.
 
  - keys are always `en`, `es` and `de`; a language whose source could not be
    fetched is `null` rather than missing, and the others are still served
+ - `word` - ready to display as-is: a Spanish or German noun comes with its
+   article (`"el aguachile"`, `"die Herbstsonne"`), which is how it is worth
+   learning. A word with more than one gender carries each (`"der/die/das
+   Joghurt"`, `"el/la periodista"`), and anything that isn't a gendered noun
+   (all English words, verbs, adjectives) is served bare
  - `part_of_speech` - string or null - a one-line hint (`"n"`, `"noun,
    masculine"`, `"Substantiv, feminin"`), whatever the source calls it; for a
    word whose senses span several parts of speech this reflects the first one
