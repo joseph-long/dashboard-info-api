@@ -129,10 +129,24 @@ function wotdEntry(label, entry) {
   }
   section.appendChild(word);
 
-  const definition = document.createElement('p');
-  definition.className = 'wotd-definition';
-  definition.textContent = entry.definition;
-  section.appendChild(definition);
+  // Every sense the source listed. The page scrolls, so show all of them
+  // rather than picking one the way a fixed-size device display has to.
+  const definitions = entry.definitions ?? [];
+  if (definitions.length === 1) {
+    const only = document.createElement('p');
+    only.className = 'wotd-definition';
+    only.textContent = definitions[0];
+    section.appendChild(only);
+  } else if (definitions.length > 1) {
+    const list = document.createElement('ol');
+    list.className = 'wotd-definitions';
+    for (const definition of definitions) {
+      const item = document.createElement('li');
+      item.textContent = definition;
+      list.appendChild(item);
+    }
+    section.appendChild(list);
+  }
 
   const meta = document.createElement('p');
   meta.className = 'muted';

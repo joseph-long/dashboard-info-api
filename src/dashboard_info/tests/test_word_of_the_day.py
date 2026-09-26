@@ -73,7 +73,43 @@ async def test_fetch_english_parses_word_and_definition():
     assert entry.language == "en"
     assert entry.word == "enfranchisement"
     assert entry.part_of_speech == "n"
-    assert "enfranchising" in entry.definition
+    # One outer sense; the nested sub-sense is folded into its text rather
+    # than listed again.
+    assert len(entry.definitions) == 1
+    assert "enfranchising" in entry.definitions[0]
+    assert "Release from imprisonment" in entry.definitions[0]
+
+
+# en.wiktionary renders one <ol> per part of speech, so a word with both a
+# proper-noun and a common-noun section has senses spread over sibling lists.
+EN_WOTD_MULTI_HTML = """
+<div class="mw-parser-output">
+<div id="WOTD-rss-description">
+<ol><li>Mount Megiddo, a hill in modern Israel.</li>
+<li>(by extension) The battle itself.</li></ol>
+<ol><li>A catastrophic or great conflict.</li>
+<li>(chess) A type of chess game.</li></ol>
+</div></div>
+"""
+
+
+async def test_fetch_english_keeps_every_sense_across_sibling_lists():
+    async def handler(request):
+        html = EN_WOTD_MULTI_HTML.replace(
+            '<div class="mw-parser-output">',
+            '<div class="mw-parser-output"><b><span id="WOTD-rss-title">Armageddon</span></b>',
+        )
+        return httpx.Response(200, json={"parse": {"text": {"*": html}}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    entry = await fetch_english(client)
+
+    assert entry.definitions == [
+        "Mount Megiddo, a hill in modern Israel.",
+        "(by extension) The battle itself.",
+        "A catastrophic or great conflict.",
+        "(chess) A type of chess game.",
+    ]
 
 
 async def test_fetch_spanish_combines_daily_and_word_lookup():
@@ -89,7 +125,7 @@ async def test_fetch_spanish_combines_daily_and_word_lookup():
     assert entry.language == "es"
     assert entry.word == "casa"
     assert entry.part_of_speech == "noun, feminine"
-    assert entry.definition == "Edificio para habitar."
+    assert entry.definitions == ["Edificio para habitar."]
 
 
 async def test_fetch_german_scrapes_landing_and_entry_pages():
@@ -105,4 +141,88 @@ async def test_fetch_german_scrapes_landing_and_entry_pages():
     assert entry.language == "de"
     assert entry.word == "Irrealis"
     assert entry.part_of_speech == "Substantiv, maskulin"
-    assert "irrealen Wunsches" in entry.definition
+    assert len(entry.definitions) == 1
+    assert "irrealen Wunsches" in entry.definitions[0]
+
+
+# Multi-sense RAE entries split senses across "meanings" (separate
+# etymologies), each with its own numbered list.
+RAE_WORDS_BANCO = {
+    "ok": True,
+    "data": {
+        "word": "banco",
+        "meanings": [
+            {
+                "senses": [
+                    {"category": "noun", "gender": "masculine",
+                     "description": "Asiento en que pueden sentarse varias personas."},
+                    {"category": "noun", "description": "Conjunto de peces que van juntos."},
+                ]
+            },
+            {"senses": [{"category": "noun", "description": "Establecimiento de credito."}]},
+        ],
+    },
+}
+
+
+async def test_fetch_spanish_keeps_every_sense_across_meanings():
+    async def handler(request):
+        if request.url.path == "/api/daily":
+            return httpx.Response(200, json={"ok": True, "data": {"word": "banco"}})
+        return httpx.Response(200, json=RAE_WORDS_BANCO)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    entry = await fetch_spanish(client)
+
+    assert entry.definitions == [
+        "Asiento en que pueden sentarse varias personas.",
+        "Conjunto de peces que van juntos.",
+        "Establecimiento de credito.",
+    ]
+    # Part of speech stays a one-line hint taken from the first sense.
+    assert entry.part_of_speech == "noun, masculine"
+
+
+# Trimmed from duden.de/rechtschreibung/Schloss. Multi-sense entries use
+# div#bedeutungen with one <li id="Bedeutung-N"> per sense (sub-senses get
+# "1a"/"1b"); the examples and idiom blocks beside each sense are not part of
+# the definition, and a cross-reference sense carries a dl.tuple instead of
+# an enumeration__text div.
+DUDEN_ENTRY_MULTI_HTML = """
+<h2>Bedeutungen (4)</h2>
+<div id="bedeutungen" class="division">
+  <ol class="enumeration">
+    <li id="Bedeutung-1a" class="enumeration__sub-item">
+      <div class="enumeration__text">Vorrichtung zum Verschlie&szlig;en</div>
+      <dl class="note"><dt>Beispiele</dt><dd>ein Schloss aufbrechen</dd></dl>
+    </li>
+    <li id="Bedeutung-1b" class="enumeration__sub-item">
+      <figure class="depiction"><figcaption>&copy; MEV Verlag, Augsburg</figcaption></figure>
+      <dl class="tuple"><dt>Kurzform f&uuml;r</dt><dd>Vorh&auml;ngeschloss</dd></dl>
+    </li>
+    <li id="Bedeutung-2" class="enumeration__item">
+      <div class="enumeration__text">Schnappverschluss</div>
+    </li>
+  </ol>
+</div>
+"""
+
+
+async def test_fetch_german_keeps_every_sense_and_drops_examples():
+    async def handler(request):
+        if request.url.path == "/wort-des-tages":
+            return httpx.Response(200, text=DUDEN_LANDING_HTML)
+        return httpx.Response(200, text=DUDEN_ENTRY_MULTI_HTML)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    entry = await fetch_german(client)
+
+    assert entry.definitions == [
+        "Vorrichtung zum Verschließen",
+        "Kurzform für Vorhängeschloss",
+        "Schnappverschluss",
+    ]
+    # The example list and the image credit are not definitions.
+    joined = " ".join(entry.definitions)
+    assert "Beispiele" not in joined
+    assert "MEV Verlag" not in joined

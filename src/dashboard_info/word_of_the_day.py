@@ -19,6 +19,16 @@ _SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([,.;:)])")
 _SPACE_AFTER_OPEN_PAREN_RE = re.compile(r"([(])\s+")
 
 
+def _outer_list_items(root) -> list:
+    """Every <li> under `root` that isn't nested inside another <li>.
+
+    Sub-senses are already flattened into their parent's text, so taking only
+    the outermost items avoids listing a sense twice. `find_all` rather than
+    `recursive=False` on one list because a source may render several sibling
+    lists (en.wiktionary splits senses across one <ol> per part of speech)."""
+    return [li for li in root.find_all("li") if li.find_parent("li") is None]
+
+
 def _detagged_text(tag) -> str:
     text = tag.get_text(" ", strip=True)
     text = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", text)
@@ -39,7 +49,10 @@ class WordOfTheDayEntry:
     date: str  # ISO date, server-local
     word: str
     part_of_speech: str | None
-    definition: str
+    # Every sense the source lists, in source order, never empty. Which of
+    # them to show (and how) is the client's decision: the LED/ePaper firmware
+    # has room for one, the web UI scrolls and shows all of them.
+    definitions: list[str]
     source_url: str
 
 
@@ -67,17 +80,17 @@ async def fetch_english(client: httpx.AsyncClient) -> WordOfTheDayEntry:
     part_of_speech = pos_tag.get_text(strip=True) if pos_tag else None
 
     description = soup.find(id="WOTD-rss-description")
-    first_sense = description.find("li") if description else None
-    if first_sense is None:
+    senses = _outer_list_items(description) if description else []
+    if not senses:
         raise ValueError(f"no WOTD-rss-description on {page!r}")
-    definition = _detagged_text(first_sense)
+    definitions = [_detagged_text(sense) for sense in senses]
 
     return WordOfTheDayEntry(
         language="en",
         date=today.isoformat(),
         word=word,
         part_of_speech=part_of_speech,
-        definition=definition,
+        definitions=definitions,
         source_url=f"https://en.wiktionary.org/wiki/{page}",
     )
 
@@ -93,37 +106,95 @@ async def fetch_spanish(client: httpx.AsyncClient) -> WordOfTheDayEntry:
 
     entry = await client.get(f"{RAE_API_BASE}/words/{word}")
     entry.raise_for_status()
-    sense = entry.json()["data"]["meanings"][0]["senses"][0]
+    # A word can carry several "meanings" (separate etymologies), each with
+    # its own numbered senses; flattening them keeps RAE's own ordering.
+    senses = [
+        sense
+        for meaning in entry.json()["data"]["meanings"]
+        for sense in meaning["senses"]
+    ]
+    definitions = [s["description"] for s in senses if s.get("description")]
+    if not definitions:
+        raise ValueError(f"no RAE senses for {word!r}")
 
-    part_of_speech = sense.get("category")
-    if sense.get("gender"):
-        part_of_speech = f"{part_of_speech}, {sense['gender']}" if part_of_speech else sense["gender"]
+    # Part of speech comes from the first sense: later ones can differ (RAE
+    # files noun and adjective senses under one word), and the field is a
+    # one-line hint, not a per-sense label.
+    first = senses[0]
+    part_of_speech = first.get("category")
+    if first.get("gender"):
+        part_of_speech = f"{part_of_speech}, {first['gender']}" if part_of_speech else first["gender"]
 
     return WordOfTheDayEntry(
         language="es",
         date=date.today().isoformat(),
         word=word,
         part_of_speech=part_of_speech,
-        definition=sense["description"],
+        definitions=definitions,
         source_url=f"https://dle.rae.es/{word}",
     )
 
 
-def _duden_section_text(soup: BeautifulSoup, heading_text: str) -> str | None:
-    heading = soup.find(
-        lambda tag: tag.name in ("h2", "h3") and tag.get_text(strip=True) == heading_text
-    )
-    if heading is None:
-        return None
-    content = heading.find_next(["p", "ul", "ol"])
-    return _detagged_text(content) if content else None
+# Duden gives every sense of a multi-sense entry its own <li id="Bedeutung-N">
+# (sub-senses get "1a"/"1b"), so the ids are a better anchor than the heading,
+# which is "Bedeutungen (4)" -- count included -- rather than a fixed string.
+_DUDEN_SENSE_ID_RE = re.compile(r"^Bedeutung-")
+
+
+def _duden_sense_text(item) -> str | None:
+    """One sense's text, minus the example/idiom blocks Duden nests beside it.
+
+    Most senses put their wording in div.enumeration__text. Cross-reference
+    senses ("Kurzform für Vorhängeschloss") have no such div and carry a
+    dl.tuple instead; anything else is noise (image credits, "Wendungen,
+    Redensarten, Sprichwörter" lists) and is skipped."""
+    text = item.find(class_="enumeration__text") or item.find("dl", class_="tuple")
+    return _detagged_text(text) if text else None
+
+
+def _duden_definitions(soup: BeautifulSoup) -> list[str]:
+    # Multi-sense entries: div#bedeutungen holds the enumeration.
+    container = soup.find(id="bedeutungen")
+    if container is not None:
+        senses = container.find_all("li", id=_DUDEN_SENSE_ID_RE)
+        found = [t for t in (_duden_sense_text(li) for li in senses) if t]
+        if found:
+            return found
+
+    # Single-sense entries: div#bedeutung, whose wording sits in the same
+    # enumeration__text div.
+    container = soup.find(id="bedeutung")
+    if container is not None:
+        text = container.find(class_="enumeration__text")
+        if text:
+            return [_detagged_text(text)]
+
+    # Layout we don't recognise: fall back to the prose right after whichever
+    # heading is present. A list here is one sense per item, same as above.
+    for heading_text in ("Bedeutung", "Bedeutungsübersicht"):
+        heading = soup.find(
+            lambda tag: tag.name in ("h2", "h3")
+            and tag.get_text(strip=True) == heading_text
+        )
+        if heading is None:
+            continue
+        content = heading.find_next(["p", "ul", "ol"])
+        if content is None:
+            continue
+        if content.name in ("ul", "ol"):
+            found = [_detagged_text(li) for li in _outer_list_items(content)]
+            if found:
+                return found
+        else:
+            return [_detagged_text(content)]
+
+    return []
 
 
 async def fetch_german(client: httpx.AsyncClient) -> WordOfTheDayEntry:
     """de.wiktionary.org only has a "Wort der Woche"; Duden's site runs a
     genuine daily word but has no API. The landing page gives the word and
-    its link to the full entry; the entry page's heading is "Bedeutung" for
-    single-sense words or "Bedeutungsübersicht" for multi-sense ones."""
+    its link to the full entry; see _duden_definitions for the entry page."""
     landing = await client.get(DUDEN_WOTD_URL)
     landing.raise_for_status()
     soup = BeautifulSoup(landing.text, "html.parser")
@@ -147,10 +218,8 @@ async def fetch_german(client: httpx.AsyncClient) -> WordOfTheDayEntry:
     entry_resp.raise_for_status()
     entry_soup = BeautifulSoup(entry_resp.text, "html.parser")
 
-    definition = _duden_section_text(entry_soup, "Bedeutung") or _duden_section_text(
-        entry_soup, "Bedeutungsübersicht"
-    )
-    if definition is None:
+    definitions = _duden_definitions(entry_soup)
+    if not definitions:
         raise ValueError(f"no Duden definition section for {word!r}")
 
     return WordOfTheDayEntry(
@@ -158,7 +227,7 @@ async def fetch_german(client: httpx.AsyncClient) -> WordOfTheDayEntry:
         date=date.today().isoformat(),
         word=word,
         part_of_speech=part_of_speech,
-        definition=definition,
+        definitions=definitions,
         source_url=entry_url,
     )
 

@@ -124,6 +124,43 @@ Any/all fields are `null` if that window is unset. Set via
 `PUT /api/devices/{device_id}/schedule` from the configure page (same shape, all
 fields optional).
 
+### `GET /public/word-of-the-day`
+
+Not device-specific -- the same content for every device -- so it isn't nested
+under `/devices/{device_id}/`, but it lives under `/public/` because devices
+call it unauthenticated over the open internet.
+
+```json
+{
+  "en": {
+    "language": "en",
+    "date": "2026-09-25",
+    "word": "polycule",
+    "part_of_speech": "n",
+    "definitions": [
+      "(sexuality) A polyamorous group of individuals connected by their overlapping platonic, romantic, or sexual relationships."
+    ],
+    "source_url": "https://en.wiktionary.org/wiki/Wiktionary:Word_of_the_day/2026/September_25"
+  },
+  "es": { "...": "..." },
+  "de": { "...": "..." }
+}
+```
+
+ - keys are always `en`, `es` and `de`; a language whose source could not be
+   fetched is `null` rather than missing, and the others are still served
+ - `part_of_speech` - string or null - a one-line hint (`"n"`, `"noun,
+   masculine"`, `"Substantiv, feminin"`), whatever the source calls it; for a
+   word whose senses span several parts of speech this reflects the first one
+ - `definitions` - array of strings, never empty - **every** sense the source
+   lists, in source order. Which of them to show is the client's decision: the
+   web UI scrolls and shows all of them, while a fixed-size device display is
+   expected to take `definitions[0]` and truncate.
+
+Entries are cached per language and refetched once per (server-local) calendar
+day; a failed refetch keeps serving the previous day's entry rather than going
+empty.
+
 ## Running
 
 ```sh

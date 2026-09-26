@@ -418,6 +418,26 @@ button.secondary:hover {
   line-height: 1.45;
 }
 
+/* Multi-sense words: one numbered item per sense, all of them shown. */
+.wotd-definitions {
+  margin: 0 0 0.5rem;
+  padding-left: 1.3rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.wotd-definitions li {
+  margin-bottom: 0.35rem;
+}
+
+.wotd-definitions li::marker {
+  color: #9aa;
+}
+
+.wotd-definitions li:last-child {
+  margin-bottom: 0;
+}
+
 .wotd-entry p:last-child {
   margin-bottom: 0;
 }

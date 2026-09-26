@@ -71,7 +71,7 @@ FIXTURE_WOTD = {
         date="2026-01-01",
         word="serendipity",
         part_of_speech="n",
-        definition="The occurrence of happy accidents.",
+        definitions=["The occurrence of happy accidents."],
         source_url="https://en.wiktionary.org/wiki/serendipity",
     ),
     "es": WordOfTheDayEntry(
@@ -79,7 +79,7 @@ FIXTURE_WOTD = {
         date="2026-01-01",
         word="casa",
         part_of_speech="noun, feminine",
-        definition="Edificio para habitar.",
+        definitions=["Edificio para habitar.", "Familia que vive junta."],
         source_url="https://dle.rae.es/casa",
     ),
     "de": WordOfTheDayEntry(
@@ -87,7 +87,7 @@ FIXTURE_WOTD = {
         date="2026-01-01",
         word="Irrealis",
         part_of_speech="Substantiv, maskulin",
-        definition="Modus des irrealen Wunsches.",
+        definitions=["Modus des irrealen Wunsches."],
         source_url="https://www.duden.de/rechtschreibung/Irrealis",
     ),
 }
@@ -359,7 +359,12 @@ def test_word_of_the_day_payload_shape(client):
     data = resp.json()
     assert set(data.keys()) == {"en", "es", "de"}
     assert data["en"]["word"] == "serendipity"
-    assert data["es"]["definition"] == "Edificio para habitar."
+    # Every sense the source listed comes through; picking among them is the
+    # client's job.
+    assert data["es"]["definitions"] == [
+        "Edificio para habitar.",
+        "Familia que vive junta.",
+    ]
     assert data["de"]["part_of_speech"] == "Substantiv, maskulin"
 
 

@@ -158,7 +158,7 @@ WOTD_FIXTURE = {
         "date": "2026-09-26",
         "word": "susurrus",
         "part_of_speech": "noun",
-        "definition": "A whispering or rustling sound.",
+        "definitions": ["A whispering or rustling sound."],
         "source_url": "https://en.wiktionary.org/wiki/susurrus",
     },
     "es": {
@@ -166,7 +166,10 @@ WOTD_FIXTURE = {
         "date": "2026-09-26",
         "word": "madrugada",
         "part_of_speech": "sustantivo",
-        "definition": "Las primeras horas despu\u00e9s de la medianoche.",
+        "definitions": [
+            "Las primeras horas despu\u00e9s de la medianoche.",
+            "Vigilia desde despu\u00e9s de la medianoche hasta el amanecer.",
+        ],
         "source_url": "https://dle.rae.es/madrugada",
     },
     "de": {
@@ -174,7 +177,7 @@ WOTD_FIXTURE = {
         "date": "2026-09-26",
         "word": "Ohrwurm",
         "part_of_speech": "Substantiv",
-        "definition": "Eine Melodie, die einem nicht mehr aus dem Kopf geht.",
+        "definitions": ["Eine Melodie, die einem nicht mehr aus dem Kopf geht."],
         "source_url": "https://www.duden.de/rechtschreibung/Ohrwurm",
     },
 }
@@ -202,9 +205,11 @@ def test_devices_page_shows_word_of_the_day(page, live_server):
     expect(english).to_contain_text("English")
     expect(english.locator(".wotd-word")).to_contain_text("susurrus")
     expect(english.locator(".wotd-pos")).to_have_text("noun")
+    # A single-sense word renders as a plain paragraph, not a one-item list.
     expect(english.locator(".wotd-definition")).to_have_text(
         "A whispering or rustling sound."
     )
+    expect(english.locator(".wotd-definitions")).to_have_count(0)
     expect(english.get_by_role("link", name="source")).to_have_attribute(
         "href", "https://en.wiktionary.org/wiki/susurrus"
     )
@@ -236,3 +241,18 @@ def test_word_of_the_day_endpoint_failure_is_reported(page, live_server):
     expect(page.locator("#wotd")).to_contain_text("Could not load the word of the day")
     # The rest of the page still works.
     expect(page.locator("#enroll-form")).to_be_visible()
+
+
+def test_word_of_the_day_shows_every_sense_of_a_multi_sense_word(page, live_server):
+    # The page scrolls, so it shows all senses rather than picking one the way
+    # a fixed-size device display has to.
+    _stub_word_of_the_day(page, WOTD_FIXTURE)
+    page.goto(live_server)
+
+    spanish = page.locator("#wotd .wotd-entry").nth(1)
+    senses = spanish.locator(".wotd-definitions li")
+    expect(senses).to_have_count(2)
+    expect(senses.nth(0)).to_have_text("Las primeras horas después de la medianoche.")
+    expect(senses.nth(1)).to_have_text(
+        "Vigilia desde después de la medianoche hasta el amanecer."
+    )
