@@ -1,3 +1,4 @@
+import json
 import re
 
 from playwright.sync_api import expect
@@ -147,3 +148,91 @@ def test_dashboard_updates_last_request_timestamp(page, live_server):
     page.goto(live_server)
     # Polling the API as the device stamped the row, so it no longer says "never".
     expect(page.locator("table.devices tbody td").nth(1)).not_to_have_text("never")
+
+
+# The real cache scrapes Wiktionary and friends; stub the endpoint in the
+# browser so these exercise the rendering, not the network.
+WOTD_FIXTURE = {
+    "en": {
+        "language": "en",
+        "date": "2026-09-26",
+        "word": "susurrus",
+        "part_of_speech": "noun",
+        "definition": "A whispering or rustling sound.",
+        "source_url": "https://en.wiktionary.org/wiki/susurrus",
+    },
+    "es": {
+        "language": "es",
+        "date": "2026-09-26",
+        "word": "madrugada",
+        "part_of_speech": "sustantivo",
+        "definition": "Las primeras horas despu\u00e9s de la medianoche.",
+        "source_url": "https://dle.rae.es/madrugada",
+    },
+    "de": {
+        "language": "de",
+        "date": "2026-09-26",
+        "word": "Ohrwurm",
+        "part_of_speech": "Substantiv",
+        "definition": "Eine Melodie, die einem nicht mehr aus dem Kopf geht.",
+        "source_url": "https://www.duden.de/rechtschreibung/Ohrwurm",
+    },
+}
+
+
+def _stub_word_of_the_day(page, payload):
+    page.route(
+        "**/public/word-of-the-day",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(payload),
+        ),
+    )
+
+
+def test_devices_page_shows_word_of_the_day(page, live_server):
+    _stub_word_of_the_day(page, WOTD_FIXTURE)
+    page.goto(live_server)
+
+    entries = page.locator("#wotd .wotd-entry")
+    expect(entries).to_have_count(3)
+
+    english = entries.nth(0)
+    expect(english).to_contain_text("English")
+    expect(english.locator(".wotd-word")).to_contain_text("susurrus")
+    expect(english.locator(".wotd-pos")).to_have_text("noun")
+    expect(english.locator(".wotd-definition")).to_have_text(
+        "A whispering or rustling sound."
+    )
+    expect(english.get_by_role("link", name="source")).to_have_attribute(
+        "href", "https://en.wiktionary.org/wiki/susurrus"
+    )
+
+    expect(entries.nth(1)).to_contain_text("madrugada")
+    expect(entries.nth(2)).to_contain_text("Ohrwurm")
+
+
+def test_word_of_the_day_missing_language_still_shows_the_others(page, live_server):
+    # The API returns null for a language whose source failed; the page has to
+    # surface that without losing the two that worked.
+    _stub_word_of_the_day(page, {**WOTD_FIXTURE, "de": None})
+    page.goto(live_server)
+
+    entries = page.locator("#wotd .wotd-entry")
+    expect(entries).to_have_count(3)
+    expect(entries.nth(0).locator(".wotd-word")).to_contain_text("susurrus")
+    expect(entries.nth(2)).to_contain_text("Source fetch failed.")
+    expect(entries.nth(2).locator(".wotd-word")).to_have_count(0)
+
+
+def test_word_of_the_day_endpoint_failure_is_reported(page, live_server):
+    page.route(
+        "**/public/word-of-the-day",
+        lambda route: route.fulfill(status=503, body="upstream down"),
+    )
+    page.goto(live_server)
+
+    expect(page.locator("#wotd")).to_contain_text("Could not load the word of the day")
+    # The rest of the page still works.
+    expect(page.locator("#enroll-form")).to_be_visible()

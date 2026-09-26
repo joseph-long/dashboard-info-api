@@ -37,6 +37,16 @@
         <tbody id="devices-body"></tbody>
       </table>
       <p id="no-devices" class="muted" hidden>No devices enrolled yet.</p>
+
+      <h2>Word of the day</h2>
+      <p class="muted">
+        The same payload devices fetch from
+        <span class="mono">/public/word-of-the-day</span>, rendered here so a
+        failed scrape is visible without polling a device.
+      </p>
+      <div id="wotd" class="card wotd">
+        <p class="muted">Loading&hellip;</p>
+      </div>
     </div>
     <script type="module" src="/static/js/index.js"></script>
   </body>

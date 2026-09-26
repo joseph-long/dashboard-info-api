@@ -2,6 +2,7 @@ const tbody = document.getElementById('devices-body');
 const noDevices = document.getElementById('no-devices');
 const enrollForm = document.getElementById('enroll-form');
 const enrollStatus = document.getElementById('enroll-status');
+const wotd = document.getElementById('wotd');
 
 function formatTimestamp(iso) {
   if (!iso) return 'never';
@@ -90,4 +91,77 @@ enrollForm.addEventListener('submit', async (event) => {
   }
 });
 
+// Word of the day. Definitions are scraped from third-party pages, so every
+// field goes in via textContent -- never innerHTML.
+const WOTD_LANGUAGES = [
+  ['en', 'English'],
+  ['es', 'Spanish'],
+  ['de', 'German'],
+];
+
+function wotdEntry(label, entry) {
+  const section = document.createElement('div');
+  section.className = 'wotd-entry';
+
+  const heading = document.createElement('p');
+  heading.className = 'wotd-lang';
+  heading.textContent = label;
+  section.appendChild(heading);
+
+  if (!entry) {
+    // The API returns null per language when that source failed; the other
+    // languages still render.
+    const missing = document.createElement('p');
+    missing.className = 'status-text error';
+    missing.textContent = 'Source fetch failed.';
+    section.appendChild(missing);
+    return section;
+  }
+
+  const word = document.createElement('p');
+  word.className = 'wotd-word';
+  word.textContent = entry.word;
+  if (entry.part_of_speech) {
+    const pos = document.createElement('span');
+    pos.className = 'wotd-pos';
+    pos.textContent = entry.part_of_speech;
+    word.append(' ', pos);
+  }
+  section.appendChild(word);
+
+  const definition = document.createElement('p');
+  definition.className = 'wotd-definition';
+  definition.textContent = entry.definition;
+  section.appendChild(definition);
+
+  const meta = document.createElement('p');
+  meta.className = 'muted';
+  const link = document.createElement('a');
+  link.href = entry.source_url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'source';
+  meta.append(`${entry.date} \u00b7 `, link);
+  section.appendChild(meta);
+
+  return section;
+}
+
+async function loadWordOfTheDay() {
+  try {
+    const resp = await fetch('/public/word-of-the-day');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const entries = await resp.json();
+    wotd.replaceChildren(
+      ...WOTD_LANGUAGES.map(([code, label]) => wotdEntry(label, entries[code])),
+    );
+  } catch (err) {
+    const failed = document.createElement('p');
+    failed.className = 'status-text error';
+    failed.textContent = `Could not load the word of the day (${err.message}).`;
+    wotd.replaceChildren(failed);
+  }
+}
+
 loadDevices();
+loadWordOfTheDay();

@@ -377,3 +377,47 @@ button.secondary:hover {
   margin-top: 1rem;
   font-size: 0.9rem;
 }
+
+/* ---------- Word of the day (devices page) ---------- */
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95em;
+}
+
+.wotd {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.wotd-lang {
+  margin: 0 0 0.4rem;
+  color: #9aa;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.wotd-word {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.wotd-pos {
+  color: #9aa;
+  font-size: 0.85rem;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.wotd-definition {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.wotd-entry p:last-child {
+  margin-bottom: 0;
+}
